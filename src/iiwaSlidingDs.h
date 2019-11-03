@@ -16,30 +16,30 @@
 #include "std_msgs/Float64.h"
 #include "sensor_msgs/JointState.h"
 // #include "boost/bind.hpp" 
-#include "Eigen/Eigen"
-
+#include <Eigen/Dense>
 // Iiwa tools
 #include <iiwa_tools/iiwa_tools.h>
 
 #define No_Robots 1
 #define No_JOINTS 7
 #define TOTAL_No_MARKERS 2
-struct RobotState {
-    Eigen::VectorXd position, velocity, torque;
-};
 
+struct State {
+    Eigen::Vector3d pos, vel, acc, angVel, angAcc;
+    Eigen::Quaterniond quat;
+};
 struct Robot
 {
+    unsigned int no_joints = No_JOINTS;
     float jnt_position[No_JOINTS] = {0.0};
-    float jnt_velocity[No_JOINTS] = {0.0};
+    Eigen::VectorXd jnt_velocity = Eigen::VectorXd(no_joints);
     float jnt_torque[No_JOINTS]   = {0.0};
     std::string name = "robot_";
 
-    Eigen::Vector3d X_ee, V_ee, A_ee;
-    Eigen::Vector4d Q_ee;
-    Eigen::Vector3d W_ee, Wdot_ee;
+    State ee;
+    State ee_desired;
 
-    Eigen::Vector3d X_ee_attractor, V_ee_desired;
+    // Eigen::Vector3d X_ee_attractor, V_ee_desired;
 
     Eigen::MatrixXd jacob       =Eigen::MatrixXd(6, No_JOINTS);
     Eigen::MatrixXd jacob_drv   =Eigen::MatrixXd(6, No_JOINTS);

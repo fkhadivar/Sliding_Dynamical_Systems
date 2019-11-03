@@ -21,12 +21,15 @@ bool iiwaSlidingDs::init()
     for (int i = 0; i < No_Robots;i++){
         _robot.push_back(Robot());
         _robot[i].name +=std::to_string(i);
-
-        _robot[i].X_ee.setConstant(0.0);
-        _robot[i].V_ee.setConstant(0.0);
-        _robot[i].X_ee_attractor.setConstant(0.0); 
-        _robot[i].V_ee_desired.setConstant(0.0);
         
+        _robot[i].ee.pos.setZero(); _robot[i].ee.vel.setZero();   _robot[i].ee.acc.setZero();
+        _robot[i].ee.quat = Eigen::Quaterniond::Identity();
+        _robot[i].ee.angVel.setZero();_robot[i].ee.angAcc.setZero();
+
+        _robot[i].ee_desired.pos.setZero(); _robot[i].ee_desired.vel.setZero();   _robot[i].ee_desired.acc.setZero();
+        _robot[i].ee_desired.quat = Eigen::Quaterniond::Identity();
+        _robot[i].ee_desired.angVel.setZero();_robot[i].ee_desired.angAcc.setZero();
+                
     }
     _optitrackOK = true;
     for(int k = 0; k < TOTAL_No_MARKERS; k++)
@@ -74,17 +77,6 @@ bool iiwaSlidingDs::init()
     _tools.init_rbdyn(urdf_string, end_effector);
 
 }
-
-// --------robotstate-------------------------
-
-
-// --------------define jacaboNIA--------------------
-Eigen::MatrixXd jac(6, No_JOINTS);
-Eigen::MatrixXd jac_deriv(6, No_JOINTS);
-
-// --------------------------------------------
-
-// -----------------------------------
 
 void iiwaSlidingDs::run()
 {
@@ -149,23 +141,25 @@ void iiwaSlidingDs::updateRobotInfo(){
     }
 
     std::tie(_robot[0].jacob, _robot[0].jacob_drv) = _tools.jacobians(robot_state);
-    // std::cout<< _robot[0].jacob << std::endl<< std::endl;
-
+    
     // jac_t_pinv = pseudo_inverse(Eigen::MatrixXd(jac.transpose()));
+    
+    // _robot[0].ee.quat // _robot[0].ee.pos
     auto ee_state = _tools.perform_fk(robot_state);
-    _robot[0].X_ee = ee_state.translation;
-
-    // std::cout<< _robot[0].X_ee << std::endl<< std::endl;
-    // Q_ee
-
-    // _robot[0].V_ee
-
-    // _robot[0].A_ee
-
-    // _robot[0].W_ee
-
-    // _robot[0].Wdot_ee
-
+    _robot[0].ee.pos = ee_state.translation;
+    _robot[0].ee.quat = ee_state.orientation;
+    
+    /// _robot[0].ee.vel // _robot[0].ee.angVel     
+    Eigen::VectorXd vel = _robot[0].jacob * _robot[0].jnt_velocity;
+    
+    _robot[0].ee.angVel = vel.head(3); // compare it with your quaternion derivitive equation
+    _robot[0].ee.vel    = vel.tail(3); // check whether this is better or filtering position derivitive
+    
+    // _robot[0].ee.acc// _robot[0].ee.angAcc
+    // std::cout<< _robot[0].jacob << std::endl<< std::endl;
+    // std::cout<< _robot[0].ee.quat.w() << std::endl<< _robot[0].ee.quat.vec()<< std::endl<< std::endl;
+    std::cout<< "velocity"<< std::endl<<_robot[0].ee.vel << std::endl<< std::endl;
+    std::cout<< "angular velocity"<< std::endl<<_robot[0].ee.angVel << std::endl<< std::endl;
 }
 void iiwaSlidingDs::optitrackInitialization(){
 
@@ -177,7 +171,7 @@ void iiwaSlidingDs::computeCommand(){
     // Get desired task
     // for exmp computeDs()
     // A dummy Ds for test, //todo
-    _robot[0].V_ee_desired   = dsGain * Eigen::Matrix3d::Identity(3,3) * (_robot[0].X_ee_attractor - _robot[0].X_ee);
+    _robot[0].ee_desired.vel   = dsGain * Eigen::Matrix3d::Identity(3,3) * (_robot[0].ee_desired.pos - _robot[0].ee.pos);
 
     // get desired force in task space
         // position 

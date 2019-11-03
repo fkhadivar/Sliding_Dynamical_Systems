@@ -14,10 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
 )
 # find_package(Boost REQUIRED)
 ## System dependencies are found with CMake's conventions
-find_package(Eigen3 REQUIRED) 
-if(NOT Eigen_FOUND)
-  include(cmake/FindEigen3.cmake)
-endif()
+find_package(Eigen3 REQUIRED eigen3) 
+# if(NOT Eigen_FOUND)
+#   include(cmake/FindEigen3.cmake)
+# endif()
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -47,5 +47,5 @@ include_directories( include ${catkin_INCLUDE_DIRS})
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 add_executable(sliding_ds src/iiwaSlidingDs_node.cpp src/iiwaSlidingDs.cpp ${MODEL_SOURCES})
-target_link_libraries(sliding_ds ${catkin_LIBRARIES})
+target_link_libraries(sliding_ds ${catkin_LIBRARIES} ${Eigen3_LIBRARIES})
 add_dependencies(sliding_ds ${PROJECT_NAME}_gencpp)
