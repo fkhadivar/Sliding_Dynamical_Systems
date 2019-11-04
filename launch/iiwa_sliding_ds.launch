@@ -1,0 +1,16 @@
+<launch>
+    <include file="$(find iiwa_gazebo)/launch/iiwa_gazebo.launch">
+    </include>
+
+    <node name="slide" pkg="sliding_ds" type="sliding_ds" output="screen">
+    </node>
+
+    <node name="plotter"
+        pkg="rqt_plot"
+        type="rqt_plot"
+        args="/iiwa/plotvar/data[0] /iiwa/plotvar/data[1] /iiwa/plotvar/data[2]" >
+    </node>
+
+
+
+</launch>

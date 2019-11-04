@@ -38,6 +38,7 @@ struct Robot
 
     State ee;
     State ee_desired;
+    // State ee_p;
 
     // Eigen::Vector3d X_ee_attractor, V_ee_desired;
 
@@ -62,6 +63,8 @@ class iiwaSlidingDs
         
         //======================== Publisher ==============================//
         ros::Publisher _TrqCmd;
+        std_msgs::Float64MultiArray _plotVar;
+        ros::Publisher _plotter;
         // ros::Publisher _PsCmd[No_Robots];
 
         //======================== Messeges================================//
@@ -69,8 +72,8 @@ class iiwaSlidingDs
         
         //======================== Robot===================================//
         std::vector<Robot> _robot;
-        // Iiwa tools
         iiwa_tools::IiwaTools _tools;
+        
         
         //======================== Control=================================//
         double _desired_jnt_torque[No_JOINTS]   = {0.0};
@@ -84,6 +87,8 @@ class iiwaSlidingDs
         //======================== Other variables ========================//
         std::mutex _mutex;
         static iiwaSlidingDs* me;
+        double VELIMIT;
+        double filterGain;
     
     public:
         iiwaSlidingDs(ros::NodeHandle &n,double frequency, ControllerMode controllerMode);
@@ -96,9 +101,6 @@ class iiwaSlidingDs
         void updateRobotInfo();
         void computeCommand();
         void optitrackInitialization();
-
-
-
 
 
 };

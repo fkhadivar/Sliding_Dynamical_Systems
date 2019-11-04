@@ -10,8 +10,11 @@ iiwaSlidingDs::iiwaSlidingDs(ros::NodeHandle &n,double frequency, ControllerMode
   _controllerMode(controllerMode)
 {
     me = this;
+    filterGain = 0.4;
+    VELIMIT = 1.0;
     _desired_jnt_torque[No_JOINTS]   = {0.0};
-    _cmd_jnt_torque.data.resize(7);
+    _cmd_jnt_torque.data.resize(No_JOINTS);
+    _plotVar.data.resize(3);
 
 
 }
@@ -29,7 +32,11 @@ bool iiwaSlidingDs::init()
         _robot[i].ee_desired.pos.setZero(); _robot[i].ee_desired.vel.setZero();   _robot[i].ee_desired.acc.setZero();
         _robot[i].ee_desired.quat = Eigen::Quaterniond::Identity();
         _robot[i].ee_desired.angVel.setZero();_robot[i].ee_desired.angAcc.setZero();
-                
+
+        // _robot[i].ee_p.pos.setZero(); _robot[i].ee_p.vel.setZero();   _robot[i].ee_p.acc.setZero();
+        // _robot[i].ee_p.quat = Eigen::Quaterniond::Identity();
+        // _robot[i].ee_p.angVel.setZero();_robot[i].ee_p.angAcc.setZero();
+
     }
     _optitrackOK = true;
     for(int k = 0; k < TOTAL_No_MARKERS; k++)
@@ -45,6 +52,7 @@ bool iiwaSlidingDs::init()
     }
     // init Publishers
     _TrqCmd = _n.advertise<std_msgs::Float64MultiArray>("/iiwa/TorqueController/command",1);
+    _plotter = _n.advertise<std_msgs::Float64MultiArray>("/iiwa/plotvar",1);
     // _PsCmd[i] = _n.advertise<std_msgs::Float64MultiArray>("/iiwa/XXXXX",1);
     
     // Ini controller
@@ -55,7 +63,6 @@ bool iiwaSlidingDs::init()
     std::string urdf_string, full_param;
     std::string robot_description = "robot_description";
     std::string end_effector;
-
     // gets the location of the robot description on the parameter server
     if (!_n.searchParam(robot_description, full_param)) {
         ROS_ERROR("Could not find parameter %s on parameter server", robot_description.c_str());
@@ -123,10 +130,14 @@ void iiwaSlidingDs::publishData(){
         for(int i = 0; i < No_JOINTS; i++)
             _cmd_jnt_torque.data[i] = _desired_jnt_torque[i];
         _TrqCmd.publish(_cmd_jnt_torque);
+    //         _plotVar.data[i] = _desired_jnt_torque[i];_cmd_jnt_torque);
     }
     else if(_controllerMode == Position_Mode){}
         // _PsCmd[j].publish(_msgDesiredjntStates);
 
+    // for(int i = 0; i < 3; i++)
+    //         _plotVar.data[i] = _desired_jnt_torque[i];
+    _plotter.publish(_plotVar);
 }
 void iiwaSlidingDs::updateRobotInfo(){
     // ROS_INFO("It Works...");
@@ -151,13 +162,22 @@ void iiwaSlidingDs::updateRobotInfo(){
     
     /// _robot[0].ee.vel // _robot[0].ee.angVel     
     Eigen::VectorXd vel = _robot[0].jacob * _robot[0].jnt_velocity;
-    
-    _robot[0].ee.angVel = vel.head(3); // compare it with your quaternion derivitive equation
     _robot[0].ee.vel    = vel.tail(3); // check whether this is better or filtering position derivitive
-    
+
+    _robot[0].ee.angVel = vel.head(3); // compare it with your quaternion derivitive equation
     // _robot[0].ee.acc// _robot[0].ee.angAcc
     // std::cout<< _robot[0].jacob << std::endl<< std::endl;
     // std::cout<< _robot[0].ee.quat.w() << std::endl<< _robot[0].ee.quat.vec()<< std::endl<< std::endl;
+
+    for(int i = 0; i < 3; i++)
+    {
+        _plotVar.data[i] = _robot[0].ee.vel[i];
+        if (_robot[0].ee.vel[i] > 1.0){
+            _plotVar.data[i]=1.0;
+        }else if (_robot[0].ee.vel[i] < -1.0){
+            _plotVar.data[i]=-1.0;
+        }
+    }
     std::cout<< "velocity"<< std::endl<<_robot[0].ee.vel << std::endl<< std::endl;
     std::cout<< "angular velocity"<< std::endl<<_robot[0].ee.angVel << std::endl<< std::endl;
 }
@@ -183,9 +203,9 @@ void iiwaSlidingDs::computeCommand(){
     // Gravity Compensationn
 
     // Checking min and max joint trque limit
-
+    double tmep[7] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.2};
     for (int i = 0; i < No_JOINTS; i++)
-        _desired_jnt_torque[i] =  0.1;
+        _desired_jnt_torque[i] =  tmep[i];
 }
 
 
