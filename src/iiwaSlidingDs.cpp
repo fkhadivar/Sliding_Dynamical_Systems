@@ -130,13 +130,10 @@ void iiwaSlidingDs::publishData(){
         for(int i = 0; i < No_JOINTS; i++)
             _cmd_jnt_torque.data[i] = _desired_jnt_torque[i];
         _TrqCmd.publish(_cmd_jnt_torque);
-    //         _plotVar.data[i] = _desired_jnt_torque[i];_cmd_jnt_torque);
     }
     else if(_controllerMode == Position_Mode){}
         // _PsCmd[j].publish(_msgDesiredjntStates);
 
-    // for(int i = 0; i < 3; i++)
-    //         _plotVar.data[i] = _desired_jnt_torque[i];
     _plotter.publish(_plotVar);
 }
 void iiwaSlidingDs::updateRobotInfo(){
