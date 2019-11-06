@@ -59,6 +59,10 @@
         "random": "cpp",
         "set": "cpp",
         "string": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "mixinvector": "cpp",
+        "fast_back_stack": "cpp",
+        "typeindex": "cpp",
+        "matrix": "cpp"
     }
 }

@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   message_generation
   iiwa_tools
+  passive_ds_control
+  utils
 )
 # find_package(Boost REQUIRED)
 ## System dependencies are found with CMake's conventions
@@ -33,7 +35,7 @@ generate_messages(
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp rospy std_msgs sensor_msgs message_generation iiwa_tools
+ CATKIN_DEPENDS roscpp rospy std_msgs sensor_msgs message_generation iiwa_tools passive_ds_control utils
 #  DEPENDS system_lib
 )
 

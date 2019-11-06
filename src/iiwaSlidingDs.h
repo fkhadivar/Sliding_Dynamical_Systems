@@ -20,33 +20,70 @@
 // Iiwa tools
 #include <iiwa_tools/iiwa_tools.h>
 
+// Passive Ds 
+#include <passive_ds_controller.h>
+#include "Utils.h"
+
+
 #define No_Robots 1
 #define No_JOINTS 7
 #define TOTAL_No_MARKERS 2
 
-struct State {
-    Eigen::Vector3d pos, vel, acc, angVel, angAcc;
-    Eigen::Quaterniond quat;
-};
+// struct State {
+//     Eigen::Vector3d pos, vel, acc, angVel, angAcc;
+//     Eigen::Quaterniond ee_quat;
+//     public:
+//         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+// };
 struct Robot
 {
     unsigned int no_joints = No_JOINTS;
-    float jnt_position[No_JOINTS] = {0.0};
+    Eigen::VectorXd jnt_position = Eigen::VectorXd(no_joints);
     Eigen::VectorXd jnt_velocity = Eigen::VectorXd(no_joints);
-    float jnt_torque[No_JOINTS]   = {0.0};
+    Eigen::VectorXd jnt_torque = Eigen::VectorXd(no_joints);
+    
+    Eigen::VectorXd nulljnt_position = Eigen::VectorXd(no_joints);
     std::string name = "robot_";
 
-    State ee;
-    State ee_desired;
+    Eigen::Vector3d ee_pos, ee_vel, ee_acc, ee_angVel, ee_angAcc;
+    Eigen::Vector4d ee_quat;
+    Eigen::Vector3d ee_des_pos, ee_des_vel, ee_des_acc, ee_des_angVel, ee_des_angAcc;
+    Eigen::Vector4d ee_des_quat;
+    // State ee;
+    // State ee_desired;
     // State ee_p;
 
     // Eigen::Vector3d X_ee_attractor, V_ee_desired;
 
-    Eigen::MatrixXd jacob       =Eigen::MatrixXd(6, No_JOINTS);
-    Eigen::MatrixXd jacob_drv   =Eigen::MatrixXd(6, No_JOINTS);
-    Eigen::MatrixXd jacob_t_pinv=Eigen::MatrixXd(No_JOINTS, 6);
-};
+    Eigen::MatrixXd jacob       = Eigen::MatrixXd(6, No_JOINTS);
+    Eigen::MatrixXd jacob_drv   = Eigen::MatrixXd(6, No_JOINTS);
+    Eigen::MatrixXd jacob_t_pinv= Eigen::MatrixXd(No_JOINTS, 6);
+    Eigen::MatrixXd jacobPos    = Eigen::MatrixXd(3, No_JOINTS);
+    Eigen::MatrixXd jacobAng    = Eigen::MatrixXd(3, No_JOINTS);
 
+    Eigen::MatrixXd pseudo_inv_jacob       = Eigen::MatrixXd(6,6);
+    Eigen::MatrixXd pseudo_inv_jacobPos    = Eigen::MatrixXd(3,3);
+    public:
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+template <class MatT>
+Eigen::Matrix<typename MatT::Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime> pseudo_inverse(const MatT& mat, typename MatT::Scalar tolerance = typename MatT::Scalar{1e-4}) // choose appropriately
+{
+    typedef typename MatT::Scalar Scalar;
+    auto svd = mat.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    const auto& singularValues = svd.singularValues();
+    Eigen::Matrix<Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime> singularValuesInv(mat.cols(), mat.rows());
+    singularValuesInv.setZero();
+    for (unsigned int i = 0; i < singularValues.size(); ++i) {
+        if (singularValues(i) > tolerance) {
+            singularValuesInv(i, i) = Scalar{1} / singularValues(i);
+        }
+        else {
+            singularValuesInv(i, i) = Scalar{0};
+        }
+    }
+    return svd.matrixV() * singularValuesInv * svd.matrixU().adjoint();
+}
 class iiwaSlidingDs
 {
     public:
@@ -78,8 +115,18 @@ class iiwaSlidingDs
         //======================== Control=================================//
         double _desired_jnt_torque[No_JOINTS]   = {0.0};
         std_msgs::Float64MultiArray _cmd_jnt_torque;
+        
         ControllerMode _controllerMode;
-        double dsGain;
+        double dsGainPos;
+        double dsGainAng;
+        
+        double _gainContPos;
+        double _gainContAng;
+        DSController * pdsCntrPos;          // Passive Ds controller
+        DSController * pdsCntrAng;          // Passive Ds controller
+
+        double sldGain;
+        double nullCntrGainP;
         //======================== World ==================================//
         bool _optitrackOK;
         bool _firstOptitrackPose[TOTAL_No_MARKERS];
