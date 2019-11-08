@@ -126,7 +126,15 @@ class iiwaSlidingDs
         DSController * pdsCntrAng;          // Passive Ds controller
 
         double sldGain;
-        double nullCntrGainP;
+        // double intGain;
+        double intGain_max;
+        double intGain_min;
+        // Eigen::MatrixXd matInt;
+        // unsigned int steps;
+
+        Eigen::VectorXd nullCntrGainP = Eigen::VectorXd(No_JOINTS);
+        double nullCntrGainV;
+        
         //======================== World ==================================//
         bool _optitrackOK;
         bool _firstOptitrackPose[TOTAL_No_MARKERS];

@@ -39,16 +39,16 @@ bool iiwaSlidingDs::init()
         
         _robot[i].ee_angVel.setZero();
         _robot[i].ee_angAcc.setZero();
-        _robot[i].ee_des_pos = {0.2 , 0.2, 0.5}; 
+        _robot[i].ee_des_pos = {0.5 , 0.5, 0.2}; 
         _robot[i].ee_des_vel.setZero();   
         _robot[i].ee_des_acc.setZero();
 
         // _robot[i].ee_des_quat = Eigen::Quaterniond::Identity();
         // _robot[i].ee_des_quat.w() = -1*_robot[i].ee_des_quat.w(); 
         
-         double angled = 0.25*M_PI;
+         double angled = 1.0*M_PI;
         _robot[i].ee_des_quat[0] = (std::cos(angled/2));
-        _robot[i].ee_des_quat.segment(1,3) = (std::sin(angled/2))* Eigen::Vector3d::UnitZ();
+        _robot[i].ee_des_quat.segment(1,3) = (std::sin(angled/2))* Eigen::Vector3d::UnitX();
         
         _robot[i].ee_des_angVel.setZero();
         _robot[i].ee_des_angAcc.setZero();
@@ -105,17 +105,27 @@ bool iiwaSlidingDs::init()
     // Initialize iiwa tools
     _tools.init_rbdyn(urdf_string, end_effector);
     // Ini controller
-    dsGainPos = 2.50; //todo : late it should be replaced by a ds
+    dsGainPos = 5.00; //todo : late it should be replaced by a ds
     dsGainAng = 2.50;
 
     // Init Passive Ds
-   _gainContPos  = 5.0;
-   _gainContAng  = 5.0;
-   pdsCntrPos    = new DSController(3.0, _gainContPos, 5*_gainContPos);
-   pdsCntrAng    = new DSController(3.0, _gainContAng, 5*_gainContAng);
-   sldGain = 100.0;
+    _gainContPos  = 10.0;
+    _gainContAng  = 5.0;
+    pdsCntrPos    = new DSController(3.0, _gainContPos, _gainContPos);
+    pdsCntrAng    = new DSController(3.0, _gainContAng, _gainContAng);
+    
+    sldGain = 2.50;
 
-   nullCntrGainP = 5.0;
+    // intGain = 0.20;
+    intGain_max = 100.0;
+    intGain_min = 0.01;
+    // steps = 1000;
+    // matInt = Eigen::MatrixXd(3,steps);
+    // matInt.setZero();
+
+    nullCntrGainP << 0.0, 1.0, 1.0, 0.75, 0.5, 0.25, 0.10;
+    nullCntrGainP = 1*nullCntrGainP;
+    nullCntrGainV = 1; 
 
 }
 
@@ -171,8 +181,6 @@ void iiwaSlidingDs::publishData(){
     _plotter.publish(_plotVar);
 }
 void iiwaSlidingDs::updateRobotInfo(){
-    // ROS_INFO("It Works...");
-
     
     iiwa_tools::RobotState robot_state;
     robot_state.position.resize(No_JOINTS);
@@ -229,7 +237,10 @@ void iiwaSlidingDs::computeCommand(){
     // for exmp computeDs()
     
     //------------------------- A dummy Ds for test, //todo
-    _robot[0].ee_des_vel   = dsGainPos * Eigen::Matrix3d::Identity(3,3) * (_robot[0].ee_des_pos - _robot[0].ee_pos);
+    Eigen::Vector3d deltaX = (_robot[0].ee_des_pos - _robot[0].ee_pos);
+    if (deltaX.norm() > 0.10)
+        deltaX = 0.1 * deltaX.normalized();
+    _robot[0].ee_des_vel   = dsGainPos * Eigen::Matrix3d::Identity(3,3) *deltaX;
     
     // ROS_INFO("It Works...");
     //angular velocity
@@ -245,20 +256,58 @@ void iiwaSlidingDs::computeCommand(){
     Eigen::Vector4d qconj = _robot[0].ee_quat;
     qconj.segment(1,3) = -1 * qconj.segment(1,3);
     Eigen::Vector4d temp_angVel = Utils<double>::quaternionProduct(qconj, deltaQ);
-    _robot[0].ee_des_angVel    = 2 * dsGainAng * temp_angVel.segment(1,3);
+
+    Eigen::Vector3d tmp_angular_vel = temp_angVel.segment(1,3);
+    if (tmp_angular_vel.norm() > 0.2)
+        tmp_angular_vel = 0.2 * tmp_angular_vel.normalized();
+    _robot[0].ee_des_angVel    = 2 * dsGainAng * tmp_angular_vel;
     
     // -----------------------get desired force in task space
-    // position 
+
     pdsCntrPos->Update(_robot[0].ee_vel,_robot[0].ee_des_vel);
+    
+    // position 
+    /*
+    Eigen::Vector3d qref = _robot[0].ee_des_vel;
+    sldGain = intGain_max;
+    if ( (1000 *_robot[0].ee_vel.norm()) >= (1/intGain_max)){
+        sldGain = 1 / (1000 * _robot[0].ee_vel.norm());
+    }
+    if (sldGain < intGain_min)
+        sldGain = intGain_min;
+    
+    qref += -sldGain * (_robot[0].ee_pos - _robot[0].ee_des_pos);
+    pdsCntrPos->Update(_robot[0].ee_vel,qref);
+    */
+
     Eigen::Vector3d wrenchPos = pdsCntrPos->control_output();
-    
     // adding sliding ds
-    Eigen::Matrix<double,3,3> dampMat = Eigen::Matrix<double,3,3>(pdsCntrPos->damping_matrix());
-    // wrenchPos += -sldGain * dampMat * (_robot[0].ee_pos - _robot[0].ee_des_pos);
-    wrenchPos += sldGain * dampMat * (_robot[0].ee_des_pos);
+    // Eigen::Matrix<double,3,3> dampMat = Eigen::Matrix<double,3,3>(pdsCntrPos->damping_matrix());
     
+    // wrenchPos += dampMat * qref;
+    
+    /* // integrator controller 
+    // matInt.leftCols(steps-2) = matInt.rightCols(steps-2);
+    // matInt.col(steps-1) = qref;
+    // Eigen::VectorXd oneVec = Eigen::VectorXd(steps);
+    // oneVec.setOnes();
+    // Eigen::Matrix<double,3,1> qint = matInt * oneVec;
+    
+    // intGain = intGain_max;
+    // if ( (1000 *_robot[0].ee_vel.norm()) >= (1/intGain_max)){
+    //     intGain = 1 / (1000 * _robot[0].ee_vel.norm());
+    // }
+    // if (intGain < intGain_min)
+    //     intGain = intGain_min;
+
+    // wrenchPos += intGain * qint;
+    */
+    //--
     Eigen::VectorXd tmp_jnt_trq_pos = Eigen::VectorXd(No_JOINTS);
     tmp_jnt_trq_pos = _robot[0].jacobPos.transpose() * wrenchPos;
+    
+    
+    
     // Orientation
     pdsCntrAng->Update(_robot[0].ee_angVel,_robot[0].ee_des_angVel);
     Eigen::Vector3d wrenchAng   = pdsCntrAng->control_output();
@@ -282,9 +331,11 @@ void iiwaSlidingDs::computeCommand(){
     
     // position and orientation
     Eigen::MatrixXd tempMat2 =  IdenMat - _robot[0].jacob.transpose()* _robot[0].pseudo_inv_jacob* _robot[0].jacob;
-    Eigen::VectorXd tmp_null_trq; 
-    tmp_null_trq = -nullCntrGainP * (_robot[0].jnt_position -_robot[0].nulljnt_position);
-
+    Eigen::VectorXd tmp_null_trq = Eigen::VectorXd(No_JOINTS);
+    for (int i =0; i<No_JOINTS; i++){ 
+        tmp_null_trq[i] = -nullCntrGainP[i] * (_robot[0].jnt_position[i] -_robot[0].nulljnt_position[i]);
+        tmp_null_trq[i] += -nullCntrGainV * _robot[0].jnt_velocity[i];
+    }
     // ROS_INFO_STREAM(tmp_null_trq.rows()<<"x"<<tmp_null_trq.cols()<<" vs "<<tempMat.rows()<<"x"<<tempMat.cols());
     tmp_jnt_trq += tempMat2 * tmp_null_trq;
     // Gravity Compensationn
