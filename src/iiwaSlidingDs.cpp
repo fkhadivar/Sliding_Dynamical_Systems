@@ -39,7 +39,7 @@ bool iiwaSlidingDs::init()
         
         _robot[i].ee_angVel.setZero();
         _robot[i].ee_angAcc.setZero();
-        _robot[i].ee_des_pos = {0.5 , 0.5, 0.2}; 
+        _robot[i].ee_des_pos = {-0.5 , 0.5, 0.2}; 
         _robot[i].ee_des_vel.setZero();   
         _robot[i].ee_des_acc.setZero();
 
@@ -112,9 +112,10 @@ bool iiwaSlidingDs::init()
     _gainContPos  = 10.0;
     _gainContAng  = 5.0;
     pdsCntrPos    = new DSController(3.0, _gainContPos, _gainContPos);
+    sldCntrPos    = new DSController(3.0, 0, _gainContPos);
     pdsCntrAng    = new DSController(3.0, _gainContAng, _gainContAng);
     
-    sldGain = 2.50;
+    sldGain = 5000;
 
     // intGain = 0.20;
     intGain_max = 100.0;
@@ -216,7 +217,7 @@ void iiwaSlidingDs::updateRobotInfo(){
 
     for(int i = 0; i < 3; i++)
     {
-        _plotVar.data[i] = (_robot[0].ee_des_pos - _robot[0].ee_pos)[i];
+        _plotVar.data[i] = (_robot[0].ee_des_vel - _robot[0].ee_vel)[i];
         // if (_robot[0].ee_vel[i] > 1.0){
         //     _plotVar.data[i]=1.0;
         // }else if (_robot[0].ee_vel[i] < -1.0){
@@ -265,22 +266,22 @@ void iiwaSlidingDs::computeCommand(){
     // -----------------------get desired force in task space
 
     pdsCntrPos->Update(_robot[0].ee_vel,_robot[0].ee_des_vel);
-    
+    Eigen::Vector3d wrenchPos = pdsCntrPos->control_output();
     // position 
-    /*
+    
     Eigen::Vector3d qref = _robot[0].ee_des_vel;
-    sldGain = intGain_max;
-    if ( (1000 *_robot[0].ee_vel.norm()) >= (1/intGain_max)){
-        sldGain = 1 / (1000 * _robot[0].ee_vel.norm());
-    }
-    if (sldGain < intGain_min)
-        sldGain = intGain_min;
+    // sldGain = intGain_max;
+    // if ( (1000 *_robot[0].ee_vel.norm()) >= (1/intGain_max)){
+    //     sldGain = 1 / (1000 * _robot[0].ee_vel.norm());
+    // }
+    // if (sldGain < intGain_min)
+    //     sldGain = intGain_min;
     
     qref += -sldGain * (_robot[0].ee_pos - _robot[0].ee_des_pos);
-    pdsCntrPos->Update(_robot[0].ee_vel,qref);
-    */
-
-    Eigen::Vector3d wrenchPos = pdsCntrPos->control_output();
+    sldCntrPos->Update(_robot[0].ee_vel,_robot[0].ee_des_vel);
+    Eigen::Matrix<double,3,3> dampMat = Eigen::Matrix<double,3,3>(sldCntrPos->damping_matrix());
+    wrenchPos += dampMat * qref;
+    
     // adding sliding ds
     // Eigen::Matrix<double,3,3> dampMat = Eigen::Matrix<double,3,3>(pdsCntrPos->damping_matrix());
     

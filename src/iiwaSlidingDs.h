@@ -123,6 +123,7 @@ class iiwaSlidingDs
         double _gainContPos;
         double _gainContAng;
         DSController * pdsCntrPos;          // Passive Ds controller
+        DSController * sldCntrPos;          // Passive Ds controller
         DSController * pdsCntrAng;          // Passive Ds controller
 
         double sldGain;
