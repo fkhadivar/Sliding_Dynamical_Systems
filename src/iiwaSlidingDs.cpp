@@ -111,11 +111,11 @@ bool iiwaSlidingDs::init()
     // Init Passive Ds
     _gainContPos  = 10.0;
     _gainContAng  = 5.0;
-    pdsCntrPos    = new DSController(3.0, _gainContPos, _gainContPos);
-    sldCntrPos    = new DSController(3.0, 0, _gainContPos);
+    pdsCntrPos    = new DSController(3.0, _gainContPos, 1.5*_gainContPos);
+    sldCntrPos    = new DSController(3.0, 0, 1.5*_gainContPos);
     pdsCntrAng    = new DSController(3.0, _gainContAng, _gainContAng);
     
-    sldGain = 5000;
+    sldGain = 0;
 
     // intGain = 0.20;
     intGain_max = 100.0;
@@ -126,7 +126,13 @@ bool iiwaSlidingDs::init()
 
     nullCntrGainP << 0.0, 1.0, 1.0, 0.75, 0.5, 0.25, 0.10;
     nullCntrGainP = 1*nullCntrGainP;
-    nullCntrGainV = 1; 
+    nullCntrGainV = 1;
+    _robot[0].nulljnt_position << 0.0, 0.0, -0.10, 0.0, 0.1, 0.1, 0.10;
+    
+    adapGain = 0.3;
+    abar.setZero();
+    abar.setOnes();
+    abar *= 0.01;
 
 }
 
@@ -188,7 +194,7 @@ void iiwaSlidingDs::updateRobotInfo(){
     robot_state.velocity.resize(No_JOINTS);
     for (size_t i = 0; i < No_JOINTS; i++) {
         robot_state.position[i] = _robot[0].jnt_position[i];
-        robot_state.velocity[i] = _robot[0].jnt_position[i];
+        robot_state.velocity[i] = _robot[0].jnt_velocity[i];
     }
 
     std::tie(_robot[0].jacob, _robot[0].jacob_drv) = _tools.jacobians(robot_state);
@@ -197,7 +203,13 @@ void iiwaSlidingDs::updateRobotInfo(){
 
     _robot[0].pseudo_inv_jacob    = pseudo_inverse(Eigen::MatrixXd(_robot[0].jacob * _robot[0].jacob.transpose()) );
     _robot[0].pseudo_inv_jacobPos = pseudo_inverse(Eigen::MatrixXd(_robot[0].jacobPos * _robot[0].jacobPos.transpose()) );
-
+    // _robot[0].pseudo_inv_jacobPJnt = pseudo_inverse(Eigen::MatrixXd(_robot[0].jacobPos.transpose() * _robot[0].jacobPos ) );
+    _robot[0].pseudo_inv_jacobJnt = pseudo_inverse(Eigen::MatrixXd(_robot[0].jacob.transpose() * _robot[0].jacob ) );
+    
+    Ymat = _tools.regressorY(robot_state);
+    // std::cout << "The matrix Ymat is of size "<< Ymat.rows() << "x" << Ymat.cols() << std::endl<< std::endl;
+    // std::cout << Ymat.block(0,0,7,20) << std::endl<< std::endl;
+    // std::cout<< Ymat.row(0)<<std::endl;
     // jac_t_pinv = pseudo_inverse(Eigen::MatrixXd(jac.transpose()));
     
     // _robot[0].ee.quat // _robot[0].ee.pos
@@ -326,6 +338,23 @@ void iiwaSlidingDs::computeCommand(){
     // Eigen::MatrixXd tempMat = IdenMat - _robot[0].jacobPos.transpose()* _robot[0].pseudo_inv_jacobPos* _robot[0].jacobPos;
     // tmp_jnt_trq = tmp_jnt_trq_pos + tempMat * tmp_jnt_trq_ang;
     
+    //---------------------- Adaptive Controller
+    //if just ee-pos
+    // abar += -_dt * adapGain * Ymat.transpose() * ( _robot[0].jnt_velocity - pseudo_inv_jacobPJnt * _robot[0].jacobPos.transpose() * XX) ;    
+    // if all ee-pos and ee-ang
+    /*
+    Eigen::VectorXd des_vel = Eigen::VectorXd(6);
+    des_vel.head(3) = _robot[0].ee_des_angVel;
+    des_vel.tail(3) = _robot[0].ee_des_vel;
+
+    abar += -_dt * adapGain * Ymat.transpose() * ( _robot[0].jnt_velocity - _robot[0].pseudo_inv_jacobJnt * _robot[0].jacob.transpose() * des_vel) ;    
+    */
+    //Regulation
+    abar += -_dt * adapGain * Ymat.transpose() * _robot[0].jnt_velocity;
+    Eigen::VectorXd tmp_jnt_trq_adap = Eigen::VectorXd(No_JOINTS);
+    tmp_jnt_trq_adap = Ymat * abar;
+    
+    tmp_jnt_trq += tmp_jnt_trq_adap;
     //----------------------nullspace Controller
     // jut position
     // Eigen::MatrixXd tempMat = IdenMat- _robot[0].jacobPos.transpose()* _robot[0].pseudo_inv_jacobPos* _robot[0].jacobPos;

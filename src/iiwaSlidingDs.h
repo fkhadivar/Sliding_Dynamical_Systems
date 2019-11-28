@@ -62,7 +62,9 @@ struct Robot
     Eigen::MatrixXd jacobAng    = Eigen::MatrixXd(3, No_JOINTS);
 
     Eigen::MatrixXd pseudo_inv_jacob       = Eigen::MatrixXd(6,6);
+    Eigen::MatrixXd pseudo_inv_jacobJnt       = Eigen::MatrixXd(7,7);
     Eigen::MatrixXd pseudo_inv_jacobPos    = Eigen::MatrixXd(3,3);
+    Eigen::MatrixXd pseudo_inv_jacobPJnt    = Eigen::MatrixXd(7,7);
     public:
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
@@ -135,6 +137,10 @@ class iiwaSlidingDs
 
         Eigen::VectorXd nullCntrGainP = Eigen::VectorXd(No_JOINTS);
         double nullCntrGainV;
+
+        Eigen::MatrixXd Ymat;
+        Eigen::VectorXd abar = Eigen::VectorXd(100);
+        double adapGain;
         
         //======================== World ==================================//
         bool _optitrackOK;
