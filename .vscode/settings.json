@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "wscript": "python",
         "core": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
@@ -63,6 +64,8 @@
         "mixinvector": "cpp",
         "fast_back_stack": "cpp",
         "typeindex": "cpp",
-        "matrix": "cpp"
+        "matrix": "cpp",
+        "polytope": "cpp",
+        "buffered_value": "cpp"
     }
 }
