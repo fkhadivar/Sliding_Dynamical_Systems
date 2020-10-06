@@ -247,7 +247,7 @@ void iiwaSlidingDs::computeCommand(){
 
     Eigen::Vector4d qconj = _robot[0].ee_quat;
     qconj.segment(1,3) = -1 * qconj.segment(1,3);
-    Eigen::Vector4d temp_angVel = Utils<double>::quaternionProduct(qconj, deltaQ);
+    Eigen::Vector4d temp_angVel = Utils<double>::quaternionProduct(deltaQ, qconj);
 
     Eigen::Vector3d tmp_angular_vel = temp_angVel.segment(1,3);
     if (tmp_angular_vel.norm() > 0.2)
